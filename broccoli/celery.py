@@ -5,7 +5,7 @@ from celery import Celery
 app = Celery(
     'broccoli',
     broker=os.environ.get('CLOUDAMQP_URL', 'pyamqp://'),
-    backend='rpc://' + os.environ.get('CLOUDAMQP_URL', ':').split(':')[1],
+    backend=os.environ.get('CLOUDAMQP_URL', 'amqp://').replace('amqp', 'rpc'),
     include=['broccoli.tasks']
 )
 
