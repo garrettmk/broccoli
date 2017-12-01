@@ -4,8 +4,8 @@ from celery import Celery
 
 app = Celery(
     'broccoli',
-    broker=os.environ.get('MESSAGE_BROKER_URI', 'pyamqp://'),
-    backend=os.environ.get('CELERY_BACKEND_URI', 'rpc://'),
+    broker=os.environ.get('CLOUDAMQP_URL', 'pyamqp://'),
+    backend='rpc://' + os.environ.get('CLOUDAMQP_URL', ':').split(':')[1],
     include=['broccoli.tasks']
 )
 
