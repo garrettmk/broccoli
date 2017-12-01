@@ -2,7 +2,6 @@ import os
 import re
 import requests
 import lib.amazonmws.amazonmws as mws
-from functools import partial
 from lxml import etree
 from .celery import app
 
@@ -53,7 +52,7 @@ def xpath_get(tag, path, _type=str, default=None):
         return default
 
 
-@app.task
+@app.task(rate_limit='12/h')
 def GetServiceStatus(service):
     """Return the status of the given service."""
     result = apis[service].GetServiceStatus()

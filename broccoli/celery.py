@@ -6,13 +6,11 @@ app = Celery(
     'broccoli',
     broker=os.environ.get('CLOUDAMQP_URL', 'pyamqp://'),
     backend=os.environ.get('CLOUDAMQP_URL', 'amqp://').replace('amqp', 'rpc'),
-    include=['broccoli.tasks']
+    include=['broccoli.mws']
 )
 
 # Do configuration (throttling limits?) here
-app.conf.update(
-    result_expires=3600
-)
+# app.conf.update()
 
 if __name__ == '__main__':
     app.start()
