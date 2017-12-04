@@ -3,6 +3,7 @@ import re
 import requests
 import lib.amazonmws.amazonmws as mws
 from lxml import etree
+from celery import Task
 from .celery import app
 
 
@@ -52,7 +53,21 @@ def xpath_get(tag, path, _type=str, default=None):
         return default
 
 
-@app.task(rate_limit='12/h')
+class MWSTask(Task):
+    """Base behaviors for all MWS api calls."""
+
+    def on_success(self, retval, task_id, args, kwargs):
+        """Cache the results of successful API calls in the database."""
+
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        """Store failed calls for later inspection."""
+
+
+def use_cache(task, days=3):
+    """Decorator that checks the database an API response."""
+
+
+@app.task(rate_limit='12/m')
 def GetServiceStatus(service):
     """Return the status of the given service."""
     result = apis[service].GetServiceStatus()
