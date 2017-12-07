@@ -1,8 +1,11 @@
 import os
 import re
 import requests
+import pymongo
+import functools
 import lib.amazonmws.amazonmws as mws
 from lxml import etree
+from datetime import datetime, timedelta
 from celery import Task
 from .celery import app
 
@@ -27,6 +30,54 @@ credentials = {
 apis = {
     'Products': mws.Products(**credentials, make_request=with_requests)
 }
+
+mongo_db = None
+
+
+def get_cache_collection():
+    """Return the Mongo database that contains the API cache."""
+    if mongo_db is None:
+        uri = os.environ.get('MONGO_URI', '')
+        db = os.environ.get('MONGO_DB', 'miranda')
+        coll = os.environ.get('CACHE_COLLECTION', 'broccoli')
+
+        client = pymongo.MongoClient(uri)
+        mongo_db = client[db]
+
+    return mongo_db[coll]
+
+
+def use_cache(days=3):
+    """Decorator that checks the database an API response."""
+
+    def _real_use_cache(task):
+
+        def _memo(*args, **kwargs):
+            filter = {
+                'task': task.__name__,
+                'args': args,
+                'kwargs': kwargs,
+                'status': 'SUCCESS',
+            }
+
+            collection = get_cache_collection()
+            prev_call = collection.find_one(filter=filter, sort=pymongo.DESCENDING)
+
+            if prev_call is not None \
+                    and prev_call['timestamp'] >= datetime.utcnow() - timedelta(days=days):
+                return prev_call['results']
+            else:
+                results = task(*args, **kwargs)
+                collection.insert_one({
+                    'task': task.__name__,
+                    'args': args,
+                    'kwargs': kwargs,
+                    'status': 'S'
+                })
+
+        return _memo
+
+    return _real_use_cache
 
 
 def remove_namespaces(xml):
@@ -56,18 +107,12 @@ def xpath_get(tag, path, _type=str, default=None):
 class MWSTask(Task):
     """Base behaviors for all MWS api calls."""
 
-    def on_success(self, retval, task_id, args, kwargs):
-        """Cache the results of successful API calls in the database."""
-
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         """Store failed calls for later inspection."""
 
 
-def use_cache(task, days=3):
-    """Decorator that checks the database an API response."""
-
-
-@app.task(rate_limit='12/m')
+@app.task(base=MWSTask, bind=True, rate_limit='12/m')
+@use_cache(days=1)
 def GetServiceStatus(service):
     """Return the status of the given service."""
     result = apis[service].GetServiceStatus()
