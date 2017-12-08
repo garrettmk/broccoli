@@ -1,0 +1,6 @@
+FROM python:latest
+WORKDIR /broccoli
+ADD . /broccoli
+RUN pip install -r requirements.txt
+EXPOSE 80
+CMD ["celery", "-A", "broccoli", "worker", "--loglevel=info"]

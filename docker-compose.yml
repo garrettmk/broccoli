@@ -1,0 +1,35 @@
+version: '2'
+services:
+  rabbit:
+    hostname: rabbit
+    image: rabbitmq:latest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    volumes:
+      - .:/broccoli
+    hostname: broccoli
+    depends_on:
+      - rabbit
+    links:
+      - rabbit
+    env_file:
+      - ./credentials.env
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    depends_on:
+      - worker
+    links:
+      - worker
+      - rabbit
+    ports:
+      - "5555:5555"
+

@@ -111,9 +111,8 @@ class MWSTask(Task):
         """Store failed calls for later inspection."""
 
 
-@app.task(base=MWSTask, bind=True, rate_limit='12/m')
-@use_cache(days=1)
-def GetServiceStatus(service):
+@app.task(bind=True)
+def GetServiceStatus(self, service):
     """Return the status of the given service."""
     result = apis[service].GetServiceStatus()
 
