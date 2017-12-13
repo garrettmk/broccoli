@@ -1,6 +1,8 @@
 FROM python:latest
 WORKDIR /broccoli
 ADD . /broccoli
+RUN apt-get update && apt-get install -y supervisor
 RUN pip install -r requirements.txt
 EXPOSE 80
-CMD ["celery", "-A", "broccoli", "worker", "--loglevel=info"]
+ENV FLASK_APP=restapi/api.py PYTHONUNBUFFERED=0
+CMD supervisord -c supervisord.conf

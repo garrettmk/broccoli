@@ -13,13 +13,18 @@ services:
       dockerfile: Dockerfile.worker
     volumes:
       - .:/broccoli
-    hostname: broccoli
+    hostname: mws
     depends_on:
       - rabbit
     links:
       - rabbit
     env_file:
-      - ./credentials.env
+      - credentials.env
+    environment:
+      - PYTHONUNBUFFERED=0
+      - FLASK_DEBUG=1
+    ports:
+      - "5000:5000"
 
   web:
     build:
