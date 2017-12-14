@@ -1,36 +1,9 @@
 import os
 import re
 import requests
-from lib.amazonmws.amazonmws import Products, Throttler
+import lib.amazonmws.amazonmws as amz_mws
 from celery import Celery, Task
 from lxml import etree
-
-
-########################################################################################################################
-
-
-def with_requests(method, **kwargs):
-    """Adapter function that lets the amazonmws library use requests."""
-    if method == 'POST':
-        return requests.post(**kwargs)
-    elif method == 'GET':
-        return requests.get(**kwargs)
-    else:
-        raise ValueError('Unsupported HTTP method: ' + method)
-
-
-########################################################################################################################
-
-
-mws_credentials = {
-    'access_key': os.environ.get('MWS_ACCESS_KEY'),
-    'secret_key': os.environ.get('MWS_SECRET_KEY'),
-    'account_id': os.environ.get('MWS_ACCOUNT_ID')
-}
-
-apis = {
-    'products': amz_mws.Products(**mws_credentials, make_request=with_requests)
-}
 
 
 ########################################################################################################################
@@ -118,17 +91,10 @@ class AmzXmlResponse:
 
 
 class MWSTask(Task):
+    """Base behaviors for all MWS API calls."""
 
     def __init__(self):
-        self._credentials = {
-            'access_key': os.environ.get('MWS_ACCESS_KEY'),
-            'secret_key': os.environ.get('MWS_SECRET_KEY'),
-            'account_id': os.environ.get('MWS_ACCOUNT_ID')
-        }
-
-        self.apis = {
-            'products': Throttler(Products(**self._credentials, make_request=self._use_requests))
-        }
+        pass
 
     @staticmethod
     def _use_requests(method, **kwargs):
@@ -139,6 +105,18 @@ class MWSTask(Task):
             return requests.get(**kwargs)
         else:
             raise ValueError('Unsupported HTTP method: ' + method)
+
+    def get_api(self, name):
+        """Return an API object for the given API section (aka 'Reports', 'Products', etc.)"""
+        credentials = {
+            'access_key': os.environ.get('MWS_ACCESS_KEY'),
+            'secret_key': os.environ.get('MWS_SECRET_KEY'),
+            'account_id': os.environ.get('MWS_ACCOUNT_ID')
+        }
+
+        # TODO: load usage information (for throttling) here
+
+        return getattr(amz_mws, name)(**credentials, make_request=self._use_requests)
 
 
 ########################################################################################################################
