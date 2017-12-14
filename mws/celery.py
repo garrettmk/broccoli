@@ -3,6 +3,7 @@ import re
 import requests
 import lib.amazonmws.amazonmws as amz_mws
 from celery import Celery, Task
+from celery.utils.log import get_task_logger
 from lxml import etree
 
 
@@ -94,7 +95,15 @@ class MWSTask(Task):
     """Base behaviors for all MWS API calls."""
 
     def __init__(self):
-        pass
+        print('MWSTask.__init__()')
+
+    def __call__(self, *args, **kwargs):
+        logger = get_task_logger(__name__)
+        logger.info('Calling super().__call__()...')
+        result = super().__call__(*args, **kwargs)
+        logger.info('Cleanup!')
+        return result
+
 
     @staticmethod
     def _use_requests(method, **kwargs):
@@ -109,12 +118,10 @@ class MWSTask(Task):
     def get_api(self, name):
         """Return an API object for the given API section (aka 'Reports', 'Products', etc.)"""
         credentials = {
-            'access_key': os.environ.get('MWS_ACCESS_KEY'),
-            'secret_key': os.environ.get('MWS_SECRET_KEY'),
-            'account_id': os.environ.get('MWS_ACCOUNT_ID')
+            'access_key': os.environ.get('MWS_ACCESS_KEY', 'test_access_key'),
+            'secret_key': os.environ.get('MWS_SECRET_KEY', 'test_secret_key'),
+            'account_id': os.environ.get('MWS_ACCOUNT_ID', 'test_account_id')
         }
-
-        # TODO: load usage information (for throttling) here
 
         return getattr(amz_mws, name)(**credentials, make_request=self._use_requests)
 
@@ -132,8 +139,15 @@ app = Celery(
 )
 
 
-# Do configuration (throttling limits?) here
-# app.conf.update()
+def route_tasks(name, args, kwargs, options, task=None, **kw):
+    """Automatically create workers for queues when they are created."""
+    queue_name = name.replace('.', '_')
+    return {'queue': queue_name}
+
+
+app.conf.task_routes = {
+    'mws.*': route_tasks
+}
 
 if __name__ == '__main__':
     app.start()

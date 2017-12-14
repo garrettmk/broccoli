@@ -30,18 +30,20 @@ def hello():
 @app.route('/api/<path:task>')
 def api_call(task):
     task_name = task.replace('/', '.')
+    queue_name = task.replace('/', '_')
     args = [arg for arg, val in request.args.items() if not len(val)]
     kwargs = {arg: val for arg, val in request.args.items() if arg not in args}
 
-    app.logger.info(f'Sending task: {task_name}(args={args}, kwargs={kwargs})')
+    app.logger.info(f'Sending to queue "{queue_name}": {task_name}(args={args}, kwargs={kwargs})')
 
     result = celery.send_task(
         name=task_name,
+        queue=queue_name,
         args=args,
-        kwargs=kwargs
+        kwargs=kwargs,
     )
 
     try:
-        return jsonify(result.get())
+        return jsonify(result.get(timeout=10))
     except Exception as e:
         return repr(e)

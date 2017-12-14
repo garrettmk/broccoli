@@ -7,8 +7,9 @@ from .celery import *
 @app.task(bind=True, base=MWSTask)
 def GetServiceStatus(self):
     """Return the status of the given service."""
+    api = self.get_api('Products')
     response = AmzXmlResponse(
-        self.apis['products'].GetServiceStatus().text
+        api.GetServiceStatus().text
     )
 
     if response.error_code:
@@ -17,9 +18,11 @@ def GetServiceStatus(self):
         return response.xpath_get('.//Status')
 
 
-@app.task(bind=True, base=MWSTask, rate_limit='12/m')
+@app.task(bind=True, base=MWSTask)
 def ListMatchingProducts(self, query, marketplace_id=amz_mws.MARKETID['US'], query_context_id=None):
     """Perform a ListMatchingProducts request."""
+    api = self.get_api('Products')
+
     # Allow two-letter abbreviations for MarketplaceId
     kwargs = {
         'Query': query,
@@ -30,7 +33,7 @@ def ListMatchingProducts(self, query, marketplace_id=amz_mws.MARKETID['US'], que
         kwargs['QueryContextId'] = query_context_id
 
     response = AmzXmlResponse(
-        self.apis['products'].ListMatchingProducts(**kwargs).text
+        api.ListMatchingProducts(**kwargs).text
     )
 
     if response.error_code:
