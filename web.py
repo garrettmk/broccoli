@@ -10,10 +10,10 @@ app = Flask(__name__)
 app.logger.addHandler(logging.StreamHandler(sys.stdout))
 app.logger.setLevel(logging.INFO)
 
-celery = Celery(
+celery_app = Celery(
     __name__,
-    broker='redis://redis:6379/0',
-    backend='redis://redis:6379/0'
+    broker=os.environ.get('REDIS_URL', 'redis://redis:6379/0'),
+    backend=os.environ.get('REDIS_URL', 'redis://redis:6379/0')
 )
 
 
@@ -34,7 +34,7 @@ def api_call(task):
 
     app.logger.info(f'Sending to queue "{queue_name}": {task_name}(args={args}, kwargs={kwargs})')
 
-    result = celery.send_task(
+    result = celery_app.send_task(
         name=task_name,
         queue=queue_name,
         args=args,

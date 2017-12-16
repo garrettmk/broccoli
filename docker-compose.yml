@@ -7,7 +7,6 @@ services:
   worker:
     build:
       context: .
-      dockerfile: Dockerfile.worker
     volumes:
       - .:/broccoli
     hostname: mws
@@ -22,16 +21,5 @@ services:
       - FLASK_DEBUG=1
     ports:
       - "5000:5000"
-
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-    depends_on:
-      - worker
-    links:
-      - worker
-      - redis
-    ports:
       - "5555:5555"
 

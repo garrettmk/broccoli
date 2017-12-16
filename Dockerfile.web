@@ -1,6 +1,0 @@
-FROM python:latest
-WORKDIR /broccoli
-ADD . /broccoli
-RUN pip install -r requirements.txt
-EXPOSE 5555
-CMD flower -A mws --port=${PORT:-5555}
