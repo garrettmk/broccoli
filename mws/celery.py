@@ -1,10 +1,34 @@
+import functools
+import hashlib
+import json
 import os
 import re
+import redis
 import requests
 import lib.amazonmws.amazonmws as amz_mws
+import celeryconfig
 from celery import Celery, Task
 from celery.utils.log import get_task_logger
 from lxml import etree
+
+
+########################################################################################################################
+
+
+mws_priority_quotas = {
+    0: {
+        'GetServiceStatus': 1,
+        'ListMatchingProducts': 1
+    },
+    1: {
+        'GetServiceStatus': 2,
+        'ListMatchingProducts': 5,
+    },
+    2: {
+        'GetServiceStatus': 2,
+        'ListMatchingProducts': 14
+    }
+}
 
 
 ########################################################################################################################
@@ -93,17 +117,31 @@ class AmzXmlResponse:
 
 class MWSTask(Task):
     """Base behaviors for all MWS API calls."""
-
     def __init__(self):
-        print('MWSTask.__init__()')
+        self.products = self.get_api('Products')
+        self.redis = redis.Redis.from_url(self.app.conf.broker_url)  # TODO: add configuration via env
 
     def __call__(self, *args, **kwargs):
+        """Provides common behaviors for all MWS api calls."""
         logger = get_task_logger(__name__)
-        logger.info('Calling super().__call__()...')
-        result = super().__call__(*args, **kwargs)
-        logger.info('Cleanup!')
-        return result
 
+        priority_ceil = max(mws_priority_quotas)
+        try:
+            priority = min(int(kwargs.pop('priority', '0')), priority_ceil)
+        except TypeError:
+            priority = 0
+
+        # If a priority level is provided, update the API throttler's
+        # quota_max settings.
+        quota_maxes = mws_priority_quotas[priority]
+
+        for action, quota in quota_maxes.items():
+            self.products.limits[action]['quota_max'] = quota
+
+        op_name = self.name.split('.')[-1]
+        logger.info(f'Wait for {op_name}: {self.products.calculate_wait(op_name)}')
+
+        return super().__call__(*args, **kwargs)
 
     @staticmethod
     def _use_requests(method, **kwargs):
@@ -120,23 +158,52 @@ class MWSTask(Task):
         credentials = {
             'access_key': os.environ.get('MWS_ACCESS_KEY', 'test_access_key'),
             'secret_key': os.environ.get('MWS_SECRET_KEY', 'test_secret_key'),
-            'account_id': os.environ.get('MWS_ACCOUNT_ID', 'test_account_id')
+            'seller_id': os.environ.get('MWS_SELLER_ID', 'test_account_id')
         }
 
-        return getattr(amz_mws, name)(**credentials, make_request=self._use_requests)
+        return amz_mws.Throttler(
+            getattr(amz_mws, name)(**credentials, make_request=self._use_requests)
+        )
+
+    def build_cache_key(self, action, args, kwargs):
+        """Build a cache key from the given action and call signature."""
+        sig = hashlib.md5(
+            json.dumps({'args': args, 'kwargs': kwargs}).encode()
+        ).hexdigest()
+
+        return action + sig
+
+
+def use_redis_cache(cache_ttl):
+    """Decorator for MWS tasks that caches values in Redis."""
+
+    def _use_redis_cache(func):
+
+        @functools.wraps(func)
+        def cached_func(self, *args, **kwargs):
+            logger = get_task_logger(__name__)
+
+            key = self.build_cache_key(func.__name__, args, kwargs)
+            cached_value = self.redis.get(key)
+            if cached_value is not None:
+                logger.info(f'Using cached value: {key}')
+                return json.loads(cached_value)
+
+            value = func(self, *args, **kwargs)
+
+            logger.info(f'Cacheing results: {key}')
+            self.redis.set(key, json.dumps(value), ex=cache_ttl)
+
+            return value
+
+        return cached_func
+    return _use_redis_cache
 
 
 ########################################################################################################################
 
 
-app = Celery(
-    'mws',
-    broker=os.environ.get('CLOUDAMQP_URL', 'pyamqp://guest:guest@rabbit:5672'),
-    backend='rpc://',
-    include=[
-        'mws.products'
-    ]
-)
+app = Celery('mws', config_source=celeryconfig)
 
 
 def route_tasks(name, args, kwargs, options, task=None, **kw):

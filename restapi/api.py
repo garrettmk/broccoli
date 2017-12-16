@@ -12,8 +12,8 @@ app.logger.setLevel(logging.INFO)
 
 celery = Celery(
     __name__,
-    broker=os.environ.get('CLOUDAMQP_URL', 'pyamqp://guest:guest@rabbit:5672'),
-    backend='rpc://'
+    broker='redis://redis:6379/0',
+    backend='redis://redis:6379/0'
 )
 
 
@@ -21,8 +21,6 @@ celery = Celery(
 def hello():
     print('A printed message.')
     print('A message printed to stderr.', file=sys.stderr)
-    app.logger.info('An info message, logged.')
-    app.logger.error('An error message, logged.')
 
     return f'PYTHONUNBUFFERED={os.environ.get("PYTHONUNBUFFERED")}<br>FLASK_DEBUG={os.environ.get("FLASK_DEBUG")}'
 

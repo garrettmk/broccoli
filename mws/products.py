@@ -5,11 +5,11 @@ from .celery import *
 
 
 @app.task(bind=True, base=MWSTask)
+@use_redis_cache(cache_ttl=300)
 def GetServiceStatus(self):
     """Return the status of the given service."""
-    api = self.get_api('Products')
     response = AmzXmlResponse(
-        api.GetServiceStatus().text
+        self.products.GetServiceStatus().text
     )
 
     if response.error_code:
@@ -19,10 +19,9 @@ def GetServiceStatus(self):
 
 
 @app.task(bind=True, base=MWSTask)
+@use_redis_cache(cache_ttl=30)
 def ListMatchingProducts(self, query, marketplace_id=amz_mws.MARKETID['US'], query_context_id=None):
     """Perform a ListMatchingProducts request."""
-    api = self.get_api('Products')
-
     # Allow two-letter abbreviations for MarketplaceId
     kwargs = {
         'Query': query,
@@ -33,7 +32,7 @@ def ListMatchingProducts(self, query, marketplace_id=amz_mws.MARKETID['US'], que
         kwargs['QueryContextId'] = query_context_id
 
     response = AmzXmlResponse(
-        api.ListMatchingProducts(**kwargs).text
+        self.products.ListMatchingProducts(**kwargs).text
     )
 
     if response.error_code:
@@ -67,3 +66,34 @@ def ListMatchingProducts(self, query, marketplace_id=amz_mws.MARKETID['US'], que
         results.append({k: v for k, v in product.items() if v is not None})
 
     return results
+
+
+@app.task(bind=True, base=MWSTask)
+@use_redis_cache(cache_ttl=30*60)
+def GetMyFeesEstimate(self, asin, price, marketplace_id=amz_mws.MARKETID['US']):
+    """Return the total fees estimate for a given ASIN and price."""
+    # Allow two-letter marketplace abbreviations
+    marketplace_id = marketplace_id if len(marketplace_id) > 2 else amz_mws.MARKETID.get(marketplace_id, 'US')
+
+    params = {
+        'FeesEstimateRequestList': [
+            {
+                'MarketplaceId': marketplace_id,
+                'IdType': 'ASIN',
+                'IdValue': asin,
+                'IsAmazonFulfilled': 'true',
+                'Identifier': 'request1',
+                'PriceToEstimateFees.ListingPrice.CurrencyCode': 'USD',
+                'PriceToEstimateFees.ListingPrice.Amount': price
+            }
+        ]
+    }
+
+    response = AmzXmlResponse(
+        self.products.GetMyFeesEstimate(**params).text
+    )
+
+    if response.error_code:
+        return response.error_as_json()
+
+    return response.xpath_get('.//TotalFeesEstimate/Amount', _type=float)

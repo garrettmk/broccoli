@@ -1,11 +1,8 @@
 version: '2'
 services:
-  rabbit:
-    hostname: rabbit
-    image: rabbitmq:latest
-    ports:
-      - "5672:5672"
-      - "15672:15672"
+  redis:
+    hostname: redis
+    image: redis:latest
 
   worker:
     build:
@@ -15,9 +12,9 @@ services:
       - .:/broccoli
     hostname: mws
     depends_on:
-      - rabbit
+      - redis
     links:
-      - rabbit
+      - redis
     env_file:
       - credentials.env
     environment:
@@ -34,7 +31,7 @@ services:
       - worker
     links:
       - worker
-      - rabbit
+      - redis
     ports:
       - "5555:5555"
 

@@ -1,4 +1,4 @@
-celery
+celery[redis]
 flask
 flower
 lxml
