@@ -1,15 +1,14 @@
-from .celery import *
+from .common import *
 
 
 ########################################################################################################################
 
 
-@app.task(bind=True, base=MWSTask)
-@use_redis_cache(cache_ttl=300)
-def GetServiceStatus(self):
+@mwstask(cache_ttl=5*60)
+def GetServiceStatus(api):
     """Return the status of the given service."""
     response = AmzXmlResponse(
-        self.products.GetServiceStatus().text
+        api.GetServiceStatus().text
     )
 
     if response.error_code:
@@ -18,9 +17,8 @@ def GetServiceStatus(self):
         return response.xpath_get('.//Status')
 
 
-@app.task(bind=True, base=MWSTask)
-@use_redis_cache(cache_ttl=30)
-def ListMatchingProducts(self, query, marketplace_id=amz_mws.MARKETID['US'], query_context_id=None):
+@mwstask(cache_ttl=24*60*60)
+def ListMatchingProducts(api, query, marketplace_id=amz_mws.MARKETID['US'], query_context_id=None):
     """Perform a ListMatchingProducts request."""
     # Allow two-letter abbreviations for MarketplaceId
     kwargs = {
@@ -32,7 +30,7 @@ def ListMatchingProducts(self, query, marketplace_id=amz_mws.MARKETID['US'], que
         kwargs['QueryContextId'] = query_context_id
 
     response = AmzXmlResponse(
-        self.products.ListMatchingProducts(**kwargs).text
+        api.ListMatchingProducts(**kwargs).text
     )
 
     if response.error_code:
@@ -68,9 +66,8 @@ def ListMatchingProducts(self, query, marketplace_id=amz_mws.MARKETID['US'], que
     return results
 
 
-@app.task(bind=True, base=MWSTask)
-@use_redis_cache(cache_ttl=30*60)
-def GetMyFeesEstimate(self, asin, price, marketplace_id=amz_mws.MARKETID['US']):
+@mwstask(cache_ttl=30*60)
+def GetMyFeesEstimate(api, asin, price, marketplace_id=amz_mws.MARKETID['US']):
     """Return the total fees estimate for a given ASIN and price."""
     # Allow two-letter marketplace abbreviations
     marketplace_id = marketplace_id if len(marketplace_id) > 2 else amz_mws.MARKETID.get(marketplace_id, 'US')
@@ -90,7 +87,7 @@ def GetMyFeesEstimate(self, asin, price, marketplace_id=amz_mws.MARKETID['US']):
     }
 
     response = AmzXmlResponse(
-        self.products.GetMyFeesEstimate(**params).text
+        api.GetMyFeesEstimate(**params).text
     )
 
     if response.error_code:

@@ -1,5 +1,7 @@
-celery[redis]
+redis
+rq
+rq-dashboard
 flask
-flower
+gunicorn
 lxml
 requests

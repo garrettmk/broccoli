@@ -7,6 +7,7 @@ services:
   worker:
     build:
       context: .
+      dockerfile: Dockerfile.worker
     volumes:
       - .:/broccoli
     hostname: mws
@@ -15,11 +16,24 @@ services:
     links:
       - redis
     env_file:
-      - credentials.env
+      - .env
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    volumes:
+    - .:/broccoli
+    hostname: web
+    depends_on:
+      - redis
+    links:
+      - redis
+      - worker
+    env_file:
+      - .env
     environment:
-      - PYTHONUNBUFFERED=0
       - FLASK_DEBUG=1
+      - PORT=5000
     ports:
       - "5000:5000"
-      - "5555:5555"
-
