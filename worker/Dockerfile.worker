@@ -1,9 +1,10 @@
 FROM python:latest
-WORKDIR /broccoli
-ADD . /broccoli
+WORKDIR /worker
+ADD . /worker
 RUN apt-get update && apt-get install -y supervisor
 RUN pip install -r requirements.txt
 ENV PYTHONUNBUFFERED=0
 RUN useradd -m workeruser
 USER workeruser
-CMD ["supervisord", "-c", "supervisord.conf"]
+ENTRYPOINT ["supervisord"]
+CMD ["-c", "supervisord.conf"]

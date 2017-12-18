@@ -1,8 +1,9 @@
 FROM python:latest
-WORKDIR /broccoli
-ADD . /broccoli
+WORKDIR /web
+ADD . /web
 RUN pip install -r requirements.txt
 ENV PYTHONUNBUFFERED=0
 RUN useradd -m webuser
 USER webuser
-CMD ["gunicorn", "web:app"]
+ENTRYPOINT ["gunicorn"]
+CMD ["web:app"]
