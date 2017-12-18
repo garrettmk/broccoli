@@ -6,10 +6,10 @@ services:
 
   worker:
     build:
-      context: .
+      context: worker
       dockerfile: Dockerfile.worker
     volumes:
-      - .:/broccoli
+      - ./worker:/worker
     hostname: mws
     depends_on:
       - redis
@@ -20,10 +20,10 @@ services:
 
   web:
     build:
-      context: .
+      context: web
       dockerfile: Dockerfile.web
     volumes:
-    - .:/broccoli
+      - ./web:/web
     hostname: web
     depends_on:
       - redis
@@ -37,3 +37,20 @@ services:
       - PORT=5000
     ports:
       - "5000:5000"
+
+  spiders:
+    build:
+      context: spiders
+      dockerfile: Dockerfile.spiders
+    volumes:
+      - ./spiders:/spiders
+    hostname: spiders
+    depends_on:
+      - redis
+    links:
+      - redis
+    env_file:
+      - .env
+    ports:
+      - "6800:6800"
+
