@@ -1,4 +1,4 @@
 redis
-rq
+celery
 lxml
 requests
