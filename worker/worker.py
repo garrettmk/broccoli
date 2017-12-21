@@ -11,6 +11,7 @@ app = Celery(
     backend=os.environ['REDIS_URL'],
     include=[
         'mws.products',
+        'parsed.products',
         'spiders'
     ]
 )

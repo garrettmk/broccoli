@@ -1,4 +1,7 @@
+from worker import app
 
+
+@app.task
 def clean_and_import(data):
     """Cleans, validates, and imports product data from a spider."""
 

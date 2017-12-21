@@ -1,4 +1,4 @@
-redis
 celery
-lxml
+redis
 requests
+lxml

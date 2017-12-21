@@ -1,6 +1,5 @@
+celery
 redis
-rq
-rq-dashboard
 flask
 gunicorn
 lxml
