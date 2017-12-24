@@ -1,5 +1,5 @@
 scrapy
 scrapy-redis
 html2text
-rq
 redis
+celery

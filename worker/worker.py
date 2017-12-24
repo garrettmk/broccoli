@@ -7,12 +7,14 @@ from celery import Celery
 
 app = Celery(
     'worker',
-    broker=os.environ['REDIS_URL'],
-    backend=os.environ['REDIS_URL'],
+    broker=os.environ.get('REDIS_URL', 'redis://'),
+    backend=os.environ.get('REDIS_URL' 'redis://'),
     include=[
         'mws.products',
+        'mws.product_adv',
         'parsed.products',
-        'spiders'
+        'parsed.product_adv',
+        'ops.spiders'
     ]
 )
 

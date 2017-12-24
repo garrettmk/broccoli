@@ -1,3 +1,4 @@
 .env
 *.log
 *.pid
+remote-dash.sh

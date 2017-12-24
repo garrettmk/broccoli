@@ -5,36 +5,32 @@
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 import os
-import redis
-import rq
+from celery import Celery
 
 
 class BroccoliPipeline:
 
     def __init__(self):
-        self._redis = None
-        self._queue = None
+        self.celery = None
 
     def open_spider(self, spider):
-        self._redis = redis.from_url(
-            os.environ.get('REDIS_URL')
-        )
-        self._queue = rq.Queue(
-            name='default',
-            connection=self._redis
+        self.celery = Celery(
+            'main',
+            broker=os.environ['REDIS_URL'],
+            backend=os.environ['REDIS_URL']
         )
 
     def close_spider(self, spider):
-        self._redis = None
+        self.celery = None
 
     def process_item(self, item, spider):
         vendor = spider.human_name
         item_data = dict(item)
         item_data.update(vendor=vendor)
 
-        self._queue.enqueue(
-            'spiders.clean_and_import',
-            args=[item_data]
+        self.celery.send_task(
+            'ops.spiders.clean_and_import',
+            kwargs={'data': item_data}
         )
 
         return item

@@ -3,6 +3,14 @@ services:
   redis:
     hostname: redis
     image: redis:latest
+    ports:
+      - "6379:6379"
+
+  mongodb:
+    hostname: mongodb
+    image: mongo:latest
+    ports:
+      - "27017:27017"
 
   worker:
     build:
@@ -15,6 +23,7 @@ services:
       - redis
     links:
       - redis
+      - mongodb
     env_file:
       - .env
 
@@ -53,5 +62,5 @@ services:
       - .env
     ports:
       - "6800:6800"
-    command: --help
+    command: ["--help"]
 

@@ -1,6 +1,5 @@
 from functools import partial
 from time import time, sleep
-from .api import AmzCall
 
 
 ########################################################################################################################

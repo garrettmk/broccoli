@@ -96,7 +96,7 @@ class KatomSpider(scrapy.Spider):
         loader = KatomProductLoader(item=ProductItem(), response=response)
 
         loader.add_css('description', 'section#overview')
-        loader.add_css('image_url', 'img.mainImgFix::attr(src)')
+        loader.add_css('image_url', '.product-image a::attr(href)')
 
         loader.nested_css('div.product-info')
         loader.add_css('title', 'h1[itemprop="name"]::text')

@@ -7,28 +7,28 @@ from lib.amazonmws.amazonmws import MARKETID
 
 
 @app.task
-def GetServiceStatus():
+def GetServiceStatus(**kwargs):
     response = AmzXmlResponse(
-        products.GetServiceStatus()
+        products.GetServiceStatus(**kwargs)
     )
 
     return response.xpath_get('.//Status')
 
 
 @app.task
-def ListMatchingProducts(query, marketplace_id=MARKETID['US'], query_context_id=None):
+def ListMatchingProducts(query, marketplace_id=MARKETID['US'], query_context_id=None, **kwargs):
     """Perform a ListMatchingProducts request."""
     # Allow two-letter abbreviations for MarketplaceId
-    kwargs = {
+    params = {
         'Query': query,
         'MarketplaceId': marketplace_id if len(marketplace_id) > 2 else MARKETID.get(marketplace_id, 'US')
     }
 
     if query_context_id is not None:
-        kwargs['QueryContextId'] = query_context_id
+        params['QueryContextId'] = query_context_id
 
     response = AmzXmlResponse(
-        products.ListMatchingProducts(**kwargs)
+        products.ListMatchingProducts(**params, **kwargs)
     )
 
     if response.error_code:
@@ -65,7 +65,7 @@ def ListMatchingProducts(query, marketplace_id=MARKETID['US'], query_context_id=
 
 
 @app.task
-def GetMyFeesEstimate(asin, price, marketplace_id=MARKETID['US']):
+def GetMyFeesEstimate(asin, price, marketplace_id=MARKETID['US'], **kwargs):
     """Return the total fees estimate for a given ASIN and price."""
     # Allow two-letter marketplace abbreviations
     marketplace_id = marketplace_id if len(marketplace_id) > 2 else MARKETID.get(marketplace_id, 'US')
@@ -85,7 +85,7 @@ def GetMyFeesEstimate(asin, price, marketplace_id=MARKETID['US']):
     }
 
     response = AmzXmlResponse(
-        products.GetMyFeesEstimate(**params)
+        products.GetMyFeesEstimate(**params, **kwargs)
     )
 
     if response.error_code:
