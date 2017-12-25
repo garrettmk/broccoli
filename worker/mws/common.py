@@ -40,6 +40,20 @@ mws_priority_limits = {
         2: {
             'quota_max': 20
         }
+    },
+
+    'GetCompetitivePricingForASIN': {
+        0: {
+            'quota_max': 1
+        },
+
+        1: {
+            'quota_max': 5
+        },
+
+        2: {
+            'quota_max': 20
+        }
     }
 }
 

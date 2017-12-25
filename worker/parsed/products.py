@@ -92,3 +92,51 @@ def GetMyFeesEstimate(asin, price, marketplace_id=MARKETID['US'], **kwargs):
         return response.error_as_json()
 
     return response.xpath_get('.//TotalFeesEstimate/Amount', _type=float)
+
+@app.task
+def GetCompetitivePricingForASIN(asin, marketplace_id='US', **kwargs):
+    """Perform a GetCompetivePricingForASIN call and return the results as a simplified JSON dictionary."""
+    marketplace_id = marketplace_id if len(marketplace_id) > 2 else MARKETID.get(marketplace_id, 'US')
+
+    params = {
+        'MarketplaceId': marketplace_id,
+        'ASINList': [asin]
+    }
+
+    response = AmzXmlResponse(
+        products.GetCompetitivePricingForASIN(**params, **kwargs)
+    )
+
+    results = {}
+    for result_tag in response.tree.iterdescendants('GetCompetitivePricingForASINResult'):
+        price = {}
+        sku = result_tag.attrib.get('ASIN')
+
+        # Check that the request succeeded.
+        if result_tag.attrib.get('status') != 'Success':
+            code = response.xpath_get('.//Error/Code', result_tag)
+            message = response.xpath_get('.//Error/Message', result_tag)
+            price['error'] = f'{code}: {message}'
+            results[sku] = price
+            continue
+
+        for price_tag in result_tag.iterdescendants('CompetitivePrice'):
+            if price_tag.attrib.get('condition') != 'New':
+                continue
+
+            price['listing_price'] = response.xpath_get('.//ListingPrice/Amount', price_tag, _type=float)
+            price['shipping'] = response.xpath_get('.//Shipping/Amount', price_tag, _type=float)
+            price['landed_price'] = response.xpath_get('.//LandedPrice/Amount', price_tag, _type=float)
+
+        for count_tag in result_tag.iterdescendants('OfferListingCount'):
+            if count_tag.attrib.get('condition') == 'New':
+                price['offers'] = count_tag.text
+        else:
+            if 'offers' not in price:
+                price['offers'] = 0
+
+        results[sku] = price
+
+    return results
+
+

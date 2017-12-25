@@ -20,5 +20,5 @@ class GetMyFeesEstimate(MWSTask):
 
 
 @app.task(base=MWSTask, bind=True, cache_ttl=60*5)
-class GetCompetitivePricing(MWSTask):
+class GetCompetitivePricingForASIN(MWSTask):
     pass

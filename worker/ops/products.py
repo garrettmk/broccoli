@@ -1,5 +1,9 @@
+from celery import chain
+from bson import ObjectId
 from .common import *
 from parsed.products import *
+from parsed.product_adv import *
+
 
 ########################################################################################################################
 
@@ -50,6 +54,16 @@ def find_amazon_matches(self, product_id, brand=None, model=None):
         # Queue up tasks, in order:
         #   upate_amazon_listing - retrieve current information and pricing (not provided by ListMatchingProducts)
         #   update_opportunity - calculate profit info with newly updated information, also recalculates the similarity score
+
+
+@app.task(base=OpsTask, bind=True)
+def update_amazon_listing(product_id):
+    """Uses various MWS and PA api calls to update the given product."""
+    product_id = ObjectId(product_id)
+    collection = self.db.products
+    product = collection.find_one({'_id': product_id})
+    if product in None:
+        raise ValueError(f'Invalid product id: {product_id}')
 
 
 
