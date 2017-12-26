@@ -17,11 +17,15 @@ def BrowseNodeLookup(BrowseNodeId, ResponseGroup=None):
 
 
 @app.task
-def ItemLookup(**kwargs):
+def ItemLookup(asin=None, **kwargs):
     params = {
         'ResponseGroup': 'Images,ItemAttributes,OfferFull,SalesRank,EditorialReview'
     }
-    params.update(kwargs)
+    params.update(
+        IdType=kwargs.pop('IdType', 'ASIN'),
+        ItemId=kwargs.pop('ItemId', asin),
+        **kwargs
+    )
 
     response = AmzXmlResponse(
         product_adv.ItemLookup(**params)

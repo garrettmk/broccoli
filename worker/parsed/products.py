@@ -17,7 +17,17 @@ def GetServiceStatus(**kwargs):
 
 @app.task
 def ListMatchingProducts(query, marketplace_id=MARKETID['US'], query_context_id=None, **kwargs):
-    """Perform a ListMatchingProducts request."""
+    """Perform a ListMatchingProducts request.
+
+    Response format:
+    {
+        'api_call': 'ListMatchingProducts',
+        'succeeded': True,
+        'params': {},
+        'errors': {},
+        'results': {}
+    }
+    """
     # Allow two-letter abbreviations for MarketplaceId
     params = {
         'Query': query,
