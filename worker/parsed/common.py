@@ -7,6 +7,22 @@ from worker import app
 ########################################################################################################################
 
 
+def format_parsed_response(action, params, results=None, errors=None, succeeded=None):
+    if succeeded is None:
+        succeeded = True if errors else False
+
+    return {
+        'action': action,
+        'params': params,
+        'results': results if results is not None else {},
+        'errors': errors if errors is not None else {},
+        'succeeded': succeeded
+    }
+
+
+########################################################################################################################
+
+
 class AmzXmlResponse:
     """A utility class for dealing with Amazon's XML responses."""
 

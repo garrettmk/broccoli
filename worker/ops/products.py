@@ -63,13 +63,10 @@ def find_amazon_matches(self, product_id, brand=None, model=None):
             chord(
                 ItemLookup.s(asin),
                 GetCompetitivePricingForASIN.s(asin)
-            )(update_amazon_listing.s(match_id)),
-            GetMyFeesEstimate.s(),
-            update_amazon_listing.s(match_id),
+            )(update_amazon_listing.s(str(match_id))),
+            update_fba_fees.s(),
             update_opportunities.s()
         ).apply_async()
-
-        #   update_opportunity - calculate profit info with newly updated information, also recalculates the similarity score
 
 
 @app.task(base=OpsTask, bind=True)
@@ -87,12 +84,12 @@ def update_amazon_listing(self, data, product_id):
     if not isinstance(data, collections.Sequence):
         data = [data]
 
-    api_calls = [source for source in data if 'api_call' in source]
+    api_calls = [source for source in data if 'action' in source and 'params' in source]
     raw_updates = [source for source in data if source not in api_calls]
 
     # Process API calls first
     for api_call in api_calls:
-        call_type = api_call['api_call']
+        call_type = api_call['action']
 
         if call_type == 'ItemLookup':
             try:
@@ -132,11 +129,73 @@ def update_amazon_listing(self, data, product_id):
         update={'$set': {**product}},
     )
 
-    return product_id
+    return str(product_id)
 
 
+@app.task(base=OpsTask, bind=True)
+def update_fba_fees(self, product_id):
+    """Updates the market_fees field with the total fee amount for the current price."""
+    collection = self.db.products
+    product = collection.find_one({'_id': ObjectId(product_id)})
+    if product is None:
+        raise ValueError(f"Invalid product id: {product_id}")
+
+    asin = product['sku']
+    price = product['price']
+
+    return update_amazon_listing(
+        GetMyFeesEstimate(asin, price),
+        product_id
+    )
 
 
+@app.task(base=OpsTask, bind=True)
+def update_opportunity(self, opp_id):
+    """Recalculate opportunity metrics."""
+    opp_collection = self.db.opportunities
+    opp = opp_collection.find_one({'_id': ObjectId(opp_id)})
+    if opp is None:
+        raise ValueError(f'Invalid opportunity ID: {opp_id}')
 
+    vendors = self.db.vendors
+    products = self.db.products
 
+    market_listing = products.find_one({'_id': opp['market_listing']})
+    supplier_listing = products.find_one({'_id': opp['supplier_listing']})
+    if None in (market_listing, supplier_listing):
+        raise ValueError(f'Invalid product ID: {opp["market_listing"] if market_listing is None else opp["supplier_listing"]}')
 
+    market_vendor = vendors.find_one({'_id': market_listing['vendor']})
+    supplier_vendor = vendors.find_one({'_id': supplier_listing['vendor']})
+    if None in (market_vendor, supplier_vendor):
+        raise ValueError(f'Invalid vendor ID: {market_listing["vendor"] if market_vendor is None else supplier_listing["vendor"]}')
+
+    try:
+        supplier_price = supplier_listing['price']
+        supplier_quantity = supplier_listing['quantity']['numeric']
+        ship_rate = supplier_listing.get('ship_rate', supplier_vendor.get('ship_rate', 0))
+        market_price = market_listing['price']
+        market_quantity = market_listing['quantity']['numeric']
+        market_fees = market_listing['market_fees']
+    except (KeyError, TypeError):
+        raise ValueError(f'market_listing or supplier_listing do not contain required data, or it is not in the correct'
+                         f'format.')
+
+    revenue = market_price - market_fees
+    subtotal = (supplier_price / supplier_quantity) * market_quantity
+    shipping = ship_rate * subtotal
+
+    profit = revenue - subtotal - shipping
+    margin = profit / market_price
+    roi = profit / (subtotal + shipping)
+
+    opp['profit'] = profit
+    opp['margin'] = margin
+    opp['roi'] = roi
+
+    opp_collection.find_one_and_update(
+        filter={'_id': ObjectId(opp_id)},
+        update={'$set': opp}
+    )
+
+    return opp_id

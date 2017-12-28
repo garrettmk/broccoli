@@ -41,7 +41,7 @@ def ItemLookup(asin=None, **kwargs):
         else:
             errors['other'] = errors.get('other', []).append(message)
 
-    products = {}
+    results = {}
     for item_tag in response.tree.iterdescendants('Item'):
         product = {}
         product['sku'] = response.xpath_get('.//ASIN', item_tag)
@@ -70,13 +70,9 @@ def ItemLookup(asin=None, **kwargs):
         product['price'] = price / 100 if price is not None else None
 
         product = {k: v for k, v in product.items() if v is not None}
-        products[product['sku']] = product
+        results[product['sku']] = product
 
-    if errors:
-        return {'errors': errors, **products}
-    else:
-        return {**products}
-
+    return format_parsed_response('ItemLookup', params, results, errors)
 
 @app.task
 def SimilarityLookup(ItemId, **kwargs):

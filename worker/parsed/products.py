@@ -1,3 +1,4 @@
+import itertools
 from .common import *
 import mws.products as products
 from lib.amazonmws.amazonmws import MARKETID
@@ -16,33 +17,25 @@ def GetServiceStatus(**kwargs):
 
 
 @app.task
-def ListMatchingProducts(query, marketplace_id=MARKETID['US'], query_context_id=None, **kwargs):
-    """Perform a ListMatchingProducts request.
-
-    Response format:
-    {
-        'api_call': 'ListMatchingProducts',
-        'succeeded': True,
-        'params': {},
-        'errors': {},
-        'results': {}
-    }
-    """
+def ListMatchingProducts(query=None, **kwargs):
+    """Perform a ListMatchingProducts request."""
     # Allow two-letter abbreviations for MarketplaceId
+    market_id = kwargs.pop('MarketplaceId', 'US')
+    market_id = market_id if len(market_id) > 2 else MARKETID.get(market_id)
     params = {
-        'Query': query,
-        'MarketplaceId': marketplace_id if len(marketplace_id) > 2 else MARKETID.get(marketplace_id, 'US')
+        k: v for k, v in {
+            'Query': kwargs.pop('Query', query),
+            'MarketplaceId': market_id,
+            **kwargs
+        }.items() if v is not None
     }
-
-    if query_context_id is not None:
-        params['QueryContextId'] = query_context_id
 
     response = AmzXmlResponse(
         products.ListMatchingProducts(**params, **kwargs)
     )
 
     if response.error_code:
-        return response.error_as_json()
+        return format_parsed_response('ListMatchingProducts', params, errors=response.error_as_json())
 
     results = []
     for tag in response.tree.iterdescendants('Product'):
@@ -71,19 +64,21 @@ def ListMatchingProducts(query, marketplace_id=MARKETID['US'], query_context_id=
 
         results.append({k: v for k, v in product.items() if v is not None})
 
-    return results
+    return format_parsed_response('ListMatchingProducts', params, results)
 
 
 @app.task
-def GetMyFeesEstimate(asin, price, marketplace_id=MARKETID['US'], **kwargs):
+def GetMyFeesEstimate(asin=None, price=None, **kwargs):
     """Return the total fees estimate for a given ASIN and price."""
     # Allow two-letter marketplace abbreviations
-    marketplace_id = marketplace_id if len(marketplace_id) > 2 else MARKETID.get(marketplace_id, 'US')
+    # Allow two-letter abbreviations for MarketplaceId
+    market_id = kwargs.pop('MarketplaceId', 'US')
+    market_id = market_id if len(market_id) > 2 else MARKETID.get(market_id)
 
     params = {
-        'FeesEstimateRequestList': [
+        'FeesEstimateRequestList': kwargs.pop('FeesEstimateRequestList', None) or [
             {
-                'MarketplaceId': marketplace_id,
+                'MarketplaceId': market_id,
                 'IdType': 'ASIN',
                 'IdValue': asin,
                 'IsAmazonFulfilled': 'true',
@@ -91,33 +86,46 @@ def GetMyFeesEstimate(asin, price, marketplace_id=MARKETID['US'], **kwargs):
                 'PriceToEstimateFees.ListingPrice.CurrencyCode': 'USD',
                 'PriceToEstimateFees.ListingPrice.Amount': price
             }
-        ]
+        ],
+        **kwargs
     }
 
     response = AmzXmlResponse(
-        products.GetMyFeesEstimate(**params, **kwargs)
+        products.GetMyFeesEstimate(**params)
     )
 
     if response.error_code:
-        return response.error_as_json()
+        return format_parsed_response('GetMyFeesEstimate', params, errors=response.error_as_json())
 
-    return response.xpath_get('.//TotalFeesEstimate/Amount', _type=float)
+    results, errors = {}, {}
+    for result_tag in response.tree.iterdescendants('FeesEstimateResult'):
+        sku = response.xpath_get('.//FeesEstimateIdentifier/IdValue', result_tag)
+
+        if response.xpath_get('.//Status', result_tag) == 'Success':
+            results[sku] = {'total_fees_estimate': response.xpath_get('.//TotalFeesEstimate/Amount', _type=float)}
+        else:
+            errors[sku] = response.xpath_get('.//Error/Message')
+
+    return format_parsed_response('GetMyFeesEstimate', params, results, errors)
+
 
 @app.task
-def GetCompetitivePricingForASIN(asin, marketplace_id='US', **kwargs):
+def GetCompetitivePricingForASIN(asin=None, **kwargs):
     """Perform a GetCompetivePricingForASIN call and return the results as a simplified JSON dictionary."""
-    marketplace_id = marketplace_id if len(marketplace_id) > 2 else MARKETID.get(marketplace_id, 'US')
+    market_id = kwargs.pop('MarketplaceId', 'US')
+    market_id = market_id if len(market_id) > 2 else MARKETID.get(market_id)
 
     params = {
-        'MarketplaceId': marketplace_id,
-        'ASINList': [asin]
+        'MarketplaceId': market_id,
+        'ASINList': kwargs.pop('ASINList', [asin]),
+        **kwargs
     }
 
     response = AmzXmlResponse(
-        products.GetCompetitivePricingForASIN(**params, **kwargs)
+        products.GetCompetitivePricingForASIN(**params)
     )
 
-    results = {}
+    results, errors = {}, {}
     for result_tag in response.tree.iterdescendants('GetCompetitivePricingForASINResult'):
         price = {}
         sku = result_tag.attrib.get('ASIN')
@@ -126,8 +134,7 @@ def GetCompetitivePricingForASIN(asin, marketplace_id='US', **kwargs):
         if result_tag.attrib.get('status') != 'Success':
             code = response.xpath_get('.//Error/Code', result_tag)
             message = response.xpath_get('.//Error/Message', result_tag)
-            price['error'] = f'{code}: {message}'
-            results[sku] = price
+            errors[sku] = f'{code}: {message}'
             continue
 
         for price_tag in result_tag.iterdescendants('CompetitivePrice'):
@@ -147,6 +154,6 @@ def GetCompetitivePricingForASIN(asin, marketplace_id='US', **kwargs):
 
         results[sku] = price
 
-    return results
+    return format_parsed_response('GetCompetitivePricingForASIN', params, results, errors)
 
 

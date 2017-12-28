@@ -14,7 +14,8 @@ app = Celery(
         'mws.product_adv',
         'parsed.products',
         'parsed.product_adv',
-        'ops.spiders'
+        'ops.spiders',
+        'ops.products'
     ]
 )
 
