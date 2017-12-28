@@ -1,0 +1,3 @@
+[submodule "worker/lib/amazonmws"]
+	path = worker/lib/amazonmws
+	url = https://github.com/garrettmk/amazonmws
